@@ -1,85 +1,84 @@
 name: release
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Version
-        required: true
+    workflow_dispatch:
+        inputs:
+            version:
+                description: Version
+                required: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+    build:
+        runs-on: ubuntu-latest
 
-    permissions:
-      id-token: write
-      contents: write
+        permissions:
+            id-token: write
+            contents: write
 
-    steps:
+        steps:
+            - name: checkout
+              uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # v3.0.1
+              with:
+                  fetch-depth: 0
 
-      - name: checkout
-        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # v3.0.1
-        with:
-          fetch-depth: 0
+            - name: shellcheck
+              uses: ludeeus/action-shellcheck@94e0aab03ca135d11a35e5bfc14e6746dc56e7e9 # v1.1.0
 
-      - name: shellcheck
-        uses: ludeeus/action-shellcheck@94e0aab03ca135d11a35e5bfc14e6746dc56e7e9 # v1.1.0
+            - name: Setup go
+              uses: actions/setup-go@84cbf8094393cdc5fe1fe1671ff2647332956b1a # v2.2.0
+              with:
+                  go-version: "1.18"
+                  check-latest: true
 
-      - name: Setup go
-        uses: actions/setup-go@84cbf8094393cdc5fe1fe1671ff2647332956b1a # v2.2.0
-        with:
-          go-version: '1.18'
-          check-latest: true
+            - name: Install GoReleaser
+              uses: goreleaser/goreleaser-action@68acf3b1adf004ac9c2f0a4259e85c5f66e99bef # v3.0.0
+              with:
+                  install-only: true
 
-      - name: Install GoReleaser
-        uses: goreleaser/goreleaser-action@68acf3b1adf004ac9c2f0a4259e85c5f66e99bef # v3.0.0
-        with:
-          install-only: true
+            - name: Install cosign
+              uses: sigstore/cosign-installer@09a077b27eb1310dcfb21981bee195b30ce09de0 # v2.4.0
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@09a077b27eb1310dcfb21981bee195b30ce09de0 # v2.4.0
+            - name: Install syft
+              uses: anchore/sbom-action/download-syft@bb716408e75840bbb01e839347cd213767269d4a # v0.11.0
 
-      - name: Install syft
-        uses: anchore/sbom-action/download-syft@bb716408e75840bbb01e839347cd213767269d4a # v0.11.0
+            - name: Install tools
+              run: |
+                  ./setup.sh
 
-      - name: Install tools
-        run: |
-          ./setup.sh
+            - name: Lint
+              run: |
+                  go vet -v ./...
+                  goimports -w -l .
+                  go mod tidy
+                  git diff --exit-code
 
-      - name: Lint
-        run: |
-          go vet -v ./...
-          goimports -w -l .
-          go mod tidy
-          git diff --exit-code
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@8b122486cedac8393e77aa9734c3528886e4a1a8 # v1.2.0
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@8b122486cedac8393e77aa9734c3528886e4a1a8 # v1.2.0
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@dc7b9719a96d48369863986a06765841d7ea23f6 # v1.6.0
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@dc7b9719a96d48369863986a06765841d7ea23f6 # v1.6.0
+            - name: Login to registry
+              uses: docker/login-action@49ed152c8eca782a232dede0303416e8f356c37b # v1.14.1
+              with:
+                  registry: docker
+                  username: ${{ secrets.DOCKER_USERNAME }}
+                  password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Login to registry
-        uses: docker/login-action@49ed152c8eca782a232dede0303416e8f356c37b # v1.14.1
-        with:
-          registry: quay.io
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+            - name: Tag
+              run: |
+                  git config user.name "$GITHUB_ACTOR"
+                  git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
-      - name: Tag
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+                  tag='${{ github.event.inputs.version }}'
+                  git tag --annotate --message "Tag for release $tag" "$tag"
+                  git push origin "refs/tags/$tag"
 
-          tag='${{ github.event.inputs.version }}'
-          git tag --annotate --message "Tag for release $tag" "$tag"
-          git push origin "refs/tags/$tag"
+            - name: Build
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -o nounset
+                  set -o pipefail
 
-      - name: Build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -o nounset
-          set -o pipefail
-
-          echo "Building release ${{ github.event.inputs.version }}"
-          ./build.sh --release
+                  echo "Building release ${{ github.event.inputs.version }}"
+                  ./build.sh --release
