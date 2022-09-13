@@ -63,11 +63,11 @@ type Git interface {
 
 // Helm is the interface that wraps Helm operations
 //
-// AddRepo adds a chart repository to the local Helm configuration
+// # AddRepo adds a chart repository to the local Helm configuration
 //
-// BuildDependencies builds the chart's dependencies
+// # BuildDependencies builds the chart's dependencies
 //
-// BuildDependenciesWithArgs allows passing additional arguments to BuildDependencies
+// # BuildDependenciesWithArgs allows passing additional arguments to BuildDependencies
 //
 // LintWithValues runs `helm lint` for the given chart using the specified values file.
 // Pass a zero value for valuesFile in order to run lint without specifying a values file.
@@ -95,21 +95,21 @@ type Helm interface {
 
 // Kubectl is the interface that wraps kubectl operations
 //
-// DeleteNamespace deletes a namespace
+// # DeleteNamespace deletes a namespace
 //
-// WaitForDeployments waits for a deployment to become ready
+// # WaitForDeployments waits for a deployment to become ready
 //
-// GetPodsforDeployment gets all pods for a deployment
+// # GetPodsforDeployment gets all pods for a deployment
 //
-// GetPods gets pods for the given args
+// # GetPods gets pods for the given args
 //
-// GetEvents prints all events for namespace
+// # GetEvents prints all events for namespace
 //
-// DescribePod prints the pod's description
+// # DescribePod prints the pod's description
 //
-// Logs prints the logs of container
+// # Logs prints the logs of container
 //
-// GetInitContainers gets all init containers of pod
+// # GetInitContainers gets all init containers of pod
 //
 // GetContainers gets all containers of pod
 type Kubectl interface {
@@ -127,7 +127,7 @@ type Kubectl interface {
 
 // Linter is the interface that wrap linting operations
 //
-// YamlLint runs `yamllint` on the specified file with the specified configuration
+// # YamlLint runs `yamllint` on the specified file with the specified configuration
 //
 // Yamale runs `yamale` on the specified file with the specified schema file
 type Linter interface {
@@ -902,10 +902,12 @@ func (t *Testing) PrintEventsPodDetailsAndLogs(namespace string, selector string
 			return
 		}
 
-		printDetails(pod, "Logs of init container", "-",
-			func(item string) error {
-				return t.kubectl.Logs(namespace, pod, item)
-			}, initContainers...)
+		if !t.config.PrintLogs {
+			printDetails(pod, "Logs of init container", "-",
+				func(item string) error {
+					return t.kubectl.Logs(namespace, pod, item)
+				}, initContainers...)
+		}
 
 		containers, err := t.kubectl.GetContainers(namespace, pod)
 		if err != nil {
@@ -913,11 +915,13 @@ func (t *Testing) PrintEventsPodDetailsAndLogs(namespace string, selector string
 			return
 		}
 
-		printDetails(pod, "Logs of container", "-",
-			func(item string) error {
-				return t.kubectl.Logs(namespace, pod, item)
-			},
-			containers...)
+		if !t.config.PrintLogs {
+			printDetails(pod, "Logs of container", "-",
+				func(item string) error {
+					return t.kubectl.Logs(namespace, pod, item)
+				},
+				containers...)
+		}
 	}
 
 	util.PrintDelimiterLine("=")
