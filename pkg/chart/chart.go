@@ -902,7 +902,7 @@ func (t *Testing) PrintEventsPodDetailsAndLogs(namespace string, selector string
 			return
 		}
 
-		if !t.config.PrintLogs {
+		if t.config.PrintLogs {
 			printDetails(pod, "Logs of init container", "-",
 				func(item string) error {
 					return t.kubectl.Logs(namespace, pod, item)
@@ -915,7 +915,7 @@ func (t *Testing) PrintEventsPodDetailsAndLogs(namespace string, selector string
 			return
 		}
 
-		if !t.config.PrintLogs {
+		if t.config.PrintLogs {
 			printDetails(pod, "Logs of container", "-",
 				func(item string) error {
 					return t.kubectl.Logs(namespace, pod, item)
